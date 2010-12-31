@@ -1,0 +1,5 @@
+ * Adapt build.sh to your setup
+ * Create a sign with "[Room]" on the first row, and the name of the room on the second row.
+ * Move around a bit until the sign is picked up.
+ * Bamf! Instant local chat room.
+ * Destroy the sign to remove the room.
