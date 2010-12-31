@@ -1,5 +1,22 @@
- * Adapt build.sh to your setup
- * Create a sign with "[Room]" on the first row, and the name of the room on the second row.
- * Move around a bit until the sign is picked up.
- * Bamf! Instant local chat room.
- * Destroy the sign to remove the room.
+The RoomChat plugin lets you define rooms to chat in.
+
+While in a room, all conversations are "local" - ie.
+ invisible to all not in the room.
+
+A room is created by placing a sign whose first line
+ is "[Room]" and second line is the name of the room.
+ Move around a bit until the sign is picked up.
+
+The area of the room is determined automatically by
+ searching for a rectangular box around the sign,
+ and stopping at areas with less than 70% air.
+
+Rooms are size-limited to 16*16*16.
+
+Room areas are not saved to the disk, but should be
+ picked up automatically once you get close to a sign
+ after a server restart or plugin reload.
+
+To remove a room, destroy its sign.
+
+Have fun!
