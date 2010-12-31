@@ -199,6 +199,9 @@ public class RoomChat extends Plugin {
       // register room
       player.sendMessage("Found a room: \"" + roomName + "\", sized " + ar.size());
       rc.rooms.add(new Room(ar, roomName, sign));
+      // update players
+      for (Player pl: etc.getServer().getPlayerList())
+        considerPlayer(pl);
     }
     private void checkForSign(Player player, Server serv, int x, int y, int z) {
       int id = serv.getBlockIdAt(x, y, z);
@@ -210,7 +213,6 @@ public class RoomChat extends Plugin {
         return;
       }
       considerSign((Sign) block, player);
-      considerPlayer(player);
     }
     public void onPlayerMove(Player player, Location from, Location to) {
       int x = (int) to.x, y = (int) to.y, z = (int) to.z;
@@ -228,8 +230,14 @@ public class RoomChat extends Plugin {
     public boolean onChat(Player player, String message) {
       Room room = rc.room_map.get(player);
       if (null != room) {
-        for (Player targetplayer: room.findPlayers()) {
-          targetplayer.sendMessage("<" + player.getColor() + player.getName() + Colors.Gold + " [" + room.name + "]" + Colors.White + "> " + message);
+        if (message.startsWith(".") && !message.startsWith("..")) { // global
+          for (Player targetplayer: etc.getServer().getPlayerList()) {
+            targetplayer.sendMessage("<" + player.getColor() + player.getName() + Colors.White + "> " + message.substring(1));
+          }
+        } else {
+          for (Player targetplayer: room.findPlayers()) {
+            targetplayer.sendMessage("<" + player.getColor() + player.getName() + Colors.Gold + " [" + room.name + "]" + Colors.White + "> " + message);
+          }
         }
         return true;
       }
