@@ -104,6 +104,13 @@ public class RoomChat extends Plugin {
       }
       return res;
     }
+    public void updateSign() {
+      String lastline = sign.getText(3);
+      if (lastline.length() == 0 || lastline.toLowerCase().startsWith("population") || lastline.toLowerCase().startsWith("pop")) {
+        sign.setText(3, String.format("pop. %s", findPlayers().size()));
+        sign.update();
+      }
+    }
   }
   
   Vector<Room> rooms = new Vector<Room> ();
@@ -125,24 +132,10 @@ public class RoomChat extends Plugin {
   
   public void initialize() {
     log.info(name + " " + version + " initialized");
-    // Uncomment as needed.
-    //etc.getLoader().addListener( PluginLoader.Hook.ARM_SWING, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.BLOCK_CREATED, l, this, PluginListener.Priority.MEDIUM);
     etc.getLoader().addListener( PluginLoader.Hook.BLOCK_BROKEN, l, this, PluginListener.Priority.MEDIUM);
-    etc.getLoader().addListener( PluginLoader.Hook.CHAT, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.COMMAND, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.COMPLEX_BLOCK_CHANGE, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.COMPLEX_BLOCK_SEND, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.DISCONNECT, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.INVENTORY_CHANGE, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.IPBAN, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.KICK, l, this, PluginListener.Priority.MEDIUM);
-    // etc.getLoader().addListener( PluginLoader.Hook.LOGIN, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.LOGINCHECK, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.NUM_HOOKS, l, this, PluginListener.Priority.MEDIUM);
-    etc.getLoader().addListener( PluginLoader.Hook.PLAYER_MOVE, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.SERVERCOMMAND, l, this, PluginListener.Priority.MEDIUM);
-    //etc.getLoader().addListener( PluginLoader.Hook.TELEPORT, l, this, PluginListener.Priority.MEDIUM);
+    etc.getLoader().addListener( PluginLoader.Hook.CHAT,         l, this, PluginListener.Priority.MEDIUM);
+    etc.getLoader().addListener( PluginLoader.Hook.PLAYER_MOVE,  l, this, PluginListener.Priority.MEDIUM);
+    etc.getLoader().addListener( PluginLoader.Hook.BLOCK_PLACE,  l, this, PluginListener.Priority.MEDIUM);
   }
 
   // Sends a message to all players!
@@ -154,37 +147,28 @@ public class RoomChat extends Plugin {
 
   public class Listener extends PluginListener {
     RoomChat rc;
-    
-    // This controls the accessability of functions / variables from the main class.
+    int excitement = 200; // are we looking for any rooms?
     public Listener(RoomChat rc) { this.rc = rc; ; }
-    // remove the /* and */ from any function you want to use
-    // make sure you add them to the listener above as well!
-    
-    public void onPlayerMove(Player player, Location from, Location to) {
-      int x = (int) to.x, y = (int) to.y, z = (int) to.z;
-      IntVec pos = new IntVec(x, y, z);
+    // check player for room status
+    // true if in a room, false otherwise
+    private boolean considerPlayer(Player player) {
+      IntVec pos = new Pos<Player> (player);
       Room room = findRoom(pos);
       Room playerroom = room_map.get(player);
-      if (null != room) {
-        if (room == playerroom) return;
-        player.sendMessage("You have entered the room \"" + room.name + "\". ");
-        room_map.put(player, room);
-        return;
-      } else if (room != playerroom) { // don't return; still have to run stochastic search
-        player.sendMessage("You have left the room \"" + playerroom.name + "\". ");
-        room_map.remove(player);
-        return;
+      if (room != playerroom) {
+        if (null != room) {
+          player.sendMessage("You have entered the room \"" + room.name + "\". ");
+          room_map.put(player, room);
+          room.updateSign();
+        } else {
+          player.sendMessage("You have left the room \"" + playerroom.name + "\". ");
+          room_map.remove(player);
+          playerroom.updateSign();
+        }
       }
-      // stochastic room search
-      Sign sign = null;
-      for (int i = 0; i < 512; ++i) { // adapt this if things get too slow for some reason
-        int checkx = x + rc.getRange(-8, 8), checky = y + rc.getRange(-1, 4), checkz = z + rc.getRange(-8, 8);
-        ComplexBlock block = etc.getServer().getComplexBlock(checkx, checky, checkz);
-        if (!(block instanceof Sign))
-          continue;
-        sign = (Sign) block;
-      }
-      if (null == sign) return;
+      return room != null;
+    }
+    void considerSign(Sign sign, Player player) {
       IntVec signpos = new IntVec(sign.getX(), sign.getY(), sign.getZ());
       if (!sign.getText(0).equalsIgnoreCase("[Room]")) return;
       if (null != findRoom(signpos)) // already registered
@@ -201,7 +185,6 @@ public class RoomChat extends Plugin {
         int volchg = vol - oldvol, airchg = air - oldair;
         assert(volchg > 0);
         float ratio = airchg * 1.0f / volchg;
-        // player.sendMessage("info: vol [" + oldvol + " + " + volchg + " = " + vol + "], air [" + oldair + " + " + airchg + " = " + air + "], ratio " + ratio + " after " + trygrow);
         if (ratio > air_ratio) { // success!
           ar = nar; oldvol = vol; oldair = air;
           if (vol > 16*16*16) break; // room size limit! TODO: make variable
@@ -210,39 +193,35 @@ public class RoomChat extends Plugin {
         }
         if (trygrow == 6) break; // can't find any more directions to grow in
       }
-      // player.sendMessage("Test: " + ar.volume() + ", " + ar.checkAirRate() + ", ar is " + ar);
       // register room
       player.sendMessage("Found a room: \"" + roomName + "\", sized " + ar.size());
       rc.rooms.add(new Room(ar, roomName, sign));
-      // retry
-      onPlayerMove(player, from, to);
     }
-
-    /*
-    public boolean onTeleport(Player player, Location from, Location to) {
-    return false;
+    private void checkForSign(Player player, Server serv, int x, int y, int z) {
+      int id = serv.getBlockIdAt(x, y, z);
+      if (id != 63 /* signpost */ && id != 68 /* wallsign */)
+        return;
+      ComplexBlock block = serv.getComplexBlock(x, y, z);
+      if (!(block instanceof Sign)) {
+        player.sendMessage("Test: " + id + ", " + block);
+        return;
+      }
+      considerSign((Sign) block, player);
+      considerPlayer(player);
     }
-    */
-
-    /*
-    public String onLoginChecks(String user) {
-    return null;
+    public void onPlayerMove(Player player, Location from, Location to) {
+      int x = (int) to.x, y = (int) to.y, z = (int) to.z;
+      IntVec pos = new IntVec(x, y, z);
+      if (considerPlayer(player))
+        return; // already in a room, no need to check
+      // stochastic room search
+      Server serv = etc.getServer();
+      for (int i = 0; i < excitement; ++i) { // adapt this if things get too slow for some reason
+        int checkx = x + rc.getRange(-8, 8), checky = y + rc.getRange(-1, 4), checkz = z + rc.getRange(-8, 8);
+        checkForSign(player, serv, checkx, checky, checkz);
+      }
+      if (excitement > 200) excitement /= 1.2;
     }
-    */
-
-    /*public void onLogin(Player player) {
-      // Player Message
-      // player.sendMessage(Colors.Yellow + "Currently running plugin: " + p.name + " v" + p.version + "!");
-
-      // Global Message
-      // p.broadcast(Colors.Green + player.getName() + " has joined the server! Wooo~");
-    }*/
-
-    /*
-    public void onDisconnect(Player player) {
-    }
-    */
-
     public boolean onChat(Player player, String message) {
       Room room = rc.room_map.get(player);
       if (null != room) {
@@ -253,42 +232,16 @@ public class RoomChat extends Plugin {
       }
       return false;
     }
-
-    /*
-    public boolean onCommand(Player player, String[] split) {
-    return false;
+    public boolean onBlockPlace(Player player, Block blockPlaced, Block blockClicked, Item itemInHand) {
+      // no point; the sign isn't placed yet and so we don't have the complexBlock data
+      // checkForSign(player, etc.getServer(), blockPlaced.getX(), blockPlaced.getY(), blockPlaced.getZ());
+      excitement = 1500; // WHERE IS IT WHERE IS IT OMG
+      return false;
     }
-    */
-
-    /*
-    public boolean onConsoleCommand(String[] split) {
-    return false;
-    }
-    */
-
-    /*
-    public void onBan(Player mod, Player player, String reason) {
-    }
-    */
-
-    /*
-    public void onIpBan(Player mod, Player player, String reason) {
-    }
-    */
-
-    /*
-    public void onKick(Player mod, Player player, String reason) {
-    }
-    */
-
-    /*
-    public boolean onBlockCreate(Player player, Block blockPlaced, Block blockClicked, int itemInHand) {
-    return false;
-    }
-    */
     public boolean onBlockBreak(Player player, Block block) {
       int idx = 0, erase = -1;
       for (Room room: rooms) {
+        // log.info(String.format("is sign @%s == %s? ", new Pos<Sign>(room.sign), new Pos<Block>(block)));
         if (new Pos<Sign>(room.sign).equals(new Pos<Block>(block))) {
           erase = idx;
           break;
@@ -298,32 +251,12 @@ public class RoomChat extends Plugin {
       if (erase != -1) {
         player.sendMessage("You have destroyed the room \"" + rooms.get(erase).name + "\". ");
         rooms.removeElementAt(erase);
+        // update
+        Location loc = new Location(player.getX(), player.getY(), player.getZ());
+        onPlayerMove(player, loc, loc);
       }
       return false;
     }
-
-    /*
-    public void onArmSwing(Player player) {
-    }
-    */
-
-    /*
-    public boolean onInventoryChange(Player player) {
-    return false;
-    }
-    */
-
-    /*
-    public boolean onComplexBlockChange(Player player, ComplexBlock block) {
-    return false;
-    }
-    */
-
-    /*
-    public boolean onSendComplexBlock(Player player, ComplexBlock block) {
-    return false;
-    }
-    */
   }
 }
 
