@@ -178,20 +178,23 @@ public class RoomChat extends Plugin {
       float air_ratio = 0.7f; // required ratio of air in added space
       Area ar = new Area(signpos, new IntVec(signpos.x + 1, signpos.y + 1, signpos.z + 1));
       int oldvol = 1, oldair = 0; // one volume, occupied by sign :p
-      int trygrow = 0; // direction
       while (true) {
-        Area nar = ar.grow(trygrow ++);
-        int vol = nar.volume(), air = nar.checkAirRate();
-        int volchg = vol - oldvol, airchg = air - oldair;
-        assert(volchg > 0);
-        float ratio = airchg * 1.0f / volchg;
-        if (ratio > air_ratio) { // success!
-          ar = nar; oldvol = vol; oldair = air;
-          if (vol > 16*16*16) break; // room size limit! TODO: make variable
-          trygrow = 0;
-          continue;
+        boolean couldGrow = false;
+        // try to go for balanced growth rate in all dirs
+        for (int dir = 0; dir < 6; ++dir) {
+          Area nar = ar.grow(dir);
+          int vol = nar.volume(), air = nar.checkAirRate();
+          int volchg = vol - oldvol, airchg = air - oldair;
+          assert(volchg > 0);
+          float ratio = airchg * 1.0f / volchg;
+          if (ratio > air_ratio) { // success!
+            ar = nar; oldvol = vol; oldair = air;
+            if (vol < 16*16*16) // room size limit! TODO: make variable
+              couldGrow = true;
+            break;
+          }
         }
-        if (trygrow == 6) break; // can't find any more directions to grow in
+        if (!couldGrow) break;
       }
       // register room
       player.sendMessage("Found a room: \"" + roomName + "\", sized " + ar.size());
